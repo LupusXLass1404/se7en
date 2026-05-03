@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coffee bar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Poppins:wght@700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div id="game">
+    <div class="hd">
+      <div class="title">☕Make coffee bar</div>
+      <div class="stats">
+        <div class="stat"><span id="score">0</span>分數</div>
+        <div class="stat"><span id="qnum">1</span>/10</div>
+      </div>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="prog" style="width:10%"></div>
+    </div>
+    <div id="main"></div>
+  </div>
+
+  <script>
+    // =====================================================
+    // 📝 配方資料表 — 在這裡新增或修改飲料配方！
+    // 格式: { name: '飲料名稱', recipe: ['食材1','食材2',...] }
+    // 所有食材名稱必須對應下方 CATEGORIES 中的項目
+    // =====================================================
+    const DRINKS = [
+      // 珍珠飲品
+      { name: '黑糖珍珠撞奶（熱）', recipe: ['大杯', '熱水', '黑糖珍珠', '熱牛奶'] },
+      { name: '黑糖珍珠撞奶（冰）', recipe: ['大杯', '藍冰', '冰牛奶', '黑糖珍珠'] },
+      { name: '咖啡珍珠歐蕾（熱）', recipe: ['大杯', '熱水', '黑糖珍珠', '冰沙', '熱牛奶'] },
+      { name: '咖啡珍珠歐蕾（冰）', recipe: ['大杯', '紅冰', '黑糖珍珠', '冰沙', '冰牛奶'] },
+      { name: '珍珠奶茶（熱）', recipe: ['大杯', '粉包', '熱水', '原味珍珠'] },
+      { name: '珍珠奶茶（冰）', recipe: ['特大杯', '粉包', '熱水', '原味珍珠', '綠冰'] },
+
+      { name: '珍珠焙火烏龍（熱）', recipe: ['大杯', '烏龍奶茶包', '黑糖珍珠', '熱水'] },
+      { name: '珍珠焙火烏龍（冰）', recipe: ['特大杯', '綠冰', '烏龍奶茶包', '黑糖珍珠', '熱水'] },
+
+      // 燕麥飲品
+      { name: '燕麥拿鐵（中）', recipe: ['中杯', '紅冰', '濃縮', '燕麥奶'] },
+      { name: '燕麥拿鐵（大）', recipe: ['大杯', '藍冰', '濃縮', '燕麥奶'] },
+
+      // 粉包／糖漿飲品
+      { name: '糖漿飲品（熱）', recipe: ['中杯', '中熱拿', '糖漿包'] },
+      { name: '糖漿飲品（冰）', recipe: ['大杯', '大冰拿', '糖漿包', '藍冰'] },
+      { name: '粉包飲品（熱）', recipe: ['中杯', '熱水', '粉包', '熱牛奶'] },
+      { name: '粉包飲品（冰）', recipe: ['大杯', '熱牛奶', '粉包', '藍冰', '冰牛奶'] },
+
+      // 風味飲品
+      { name: '西西里風檸檬氣泡咖啡', recipe: ['特大杯', '藍冰', '氣泡水', '冰沙', '檸檬液'] },
+      { name: '西西里風檸檬咖啡', recipe: ['特大杯', '藍冰', '紅冰', '大冰美', '檸檬液'] },
+    ];
+
+    // =====================================================
+    // 🗂️ 食材分類表 — 新增食材時在對應分類的 items 加入即可
+    // 新增分類：照格式加一個物件，key 要對應 CSS 中的 cat-XXX
+    // =====================================================
+    const CATEGORIES = [
+      {
+        label: '🥤 杯子',
+        key: 'cup',
+        items: ['特大杯', '大杯', '中杯'],
+      },
+      {
+        label: '🧊 冰塊',
+        key: 'ice',
+        items: ['綠冰', '藍冰', '紅冰'],
+      },
+      {
+        label: '☕ 咖啡基底',
+        key: 'coffee',
+        items: ['中熱美', '中冰美', '中熱拿', '中冰拿', '大熱美', '大冰美', '大熱拿', '大冰拿'],
+      },
+      {
+        label: '🥛咖啡機出料',
+        key: 'machine',
+        items: ['冰沙', '濃縮', '熱水', '熱牛奶', '冰牛奶'],
+      },
+      {
+        label: '✨配料',
+        key: 'extra',
+        items: ['原味珍珠', '黑糖珍珠', '粉包', '糖漿包', '燕麥奶', '烏龍奶茶包', '檸檬液', '氣泡水'],
+      },
+    ];
+
+    // =====================================================
+    const TOTAL_Q = 10;
+    let state = {};
+
+    function shuffle(arr) { return [...arr].sort(() => Math.random() - .5); }
+    function pick(arr, n) { return shuffle(arr).slice(0, n); }
+
+    function initGame() {
+      const questions = pick(DRINKS, TOTAL_Q).map(d => ({ ...d, recipe: [...d.recipe] }));
+      state = { questions, current: 0, score: 0, selected: [] };
+      renderQ();
+    }
+
+    function renderQ() {
+      const { questions, current, score, selected } = state;
+      if (current >= TOTAL_Q) { renderResult(); return; }
+
+      const q = questions[current];
+      document.getElementById('score').textContent = score;
+      document.getElementById('qnum').textContent = current + 1;
+      document.getElementById('prog').style.width = ((current + 1) / TOTAL_Q * 100) + '%';
+
+      // 配方槽
+      const slots = q.recipe.map((_, i) => {
+        if (selected[i]) {
+          return `<div class="slot filled" onclick="removeSlot(${i})">${selected[i]} ✕</div>`;
+        }
+        return `<div class="slot">？</div>`;
+      }).join('<span class="plus">+</span>');
+
+      // 分類食材卡片
+      const categoryHTML = CATEGORIES.map(cat => {
+        const cards = cat.items.map(item =>
+          `<div class="card${selected.includes(item) ? ' selected' : ''}" onclick="selectCard('${item}')">${item}</div>`
+        ).join('');
+        return `
+      <div class="cat-${cat.key}">
+        <span class="category-label">${cat.label}</span>
+        <hr>
+        <div class="category-cards">${cards}</div>
+      </div>`;
+      }).join('');
+
+      document.getElementById('main').innerHTML = `
+    <div class="question-box">
+      <div class="drink-name">${q.name}</div>
+      <div class="slots">${slots}</div>
+    </div>
+    <div class="feedback hidden" id="fb"></div>
+    <div class="ingredient-area">
+      <div class="area-title">食材選擇</div>
+      ${categoryHTML}
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" onclick="checkAnswer()">確認配方</button>
+      <button class="btn" onclick="showHint()">提示</button>
+      <button class="btn" onclick="skipQ()">跳過（-2分）</button>
+    </div>
+  `;
+    }
+
+    function selectCard(ingredient) {
+      const q = state.questions[state.current];
+      if (state.selected.length >= q.recipe.length) return;
+      if (state.selected.includes(ingredient)) return;
+      state.selected.push(ingredient);
+      renderQ();
+    }
+
+    function removeSlot(idx) {
+      state.selected.splice(idx, 1);
+      renderQ();
+    }
+
+    function checkAnswer() {
+      const q = state.questions[state.current];
+      const sel = state.selected;
+      if (sel.length < q.recipe.length) {
+        showFeedback('hint', '請先填滿所有配方欄位！');
+        return;
+      }
+      const correct = q.recipe.every(r => sel.includes(r)) && sel.every(s => q.recipe.includes(s));
+      if (correct) {
+        state.score += 10;
+        showFeedback('correct', '✓ 正確！配方完美，+10 分');
+        setTimeout(nextQ, 1100);
+      } else {
+        showFeedback('wrong', '✕ 配方有誤！正確配方：' + q.recipe.join(' + '));
+        state.selected = [];
+        setTimeout(renderQ, 2000);
+      }
+    }
+
+    function showHint() {
+      const q = state.questions[state.current];
+      const missing = q.recipe.filter(r => !state.selected.includes(r));
+      if (missing.length === 0) {
+        showFeedback('hint', '配方已全部填入，確認看看吧！');
+        return;
+      }
+      showFeedback('hint', '提示：配方中包含「' + missing[0] + '」');
+    }
+
+    function skipQ() {
+      state.score = Math.max(0, state.score - 2);
+      nextQ();
+    }
+
+    function nextQ() {
+      state.current++;
+      state.selected = [];
+      renderQ();
+    }
+
+    function showFeedback(type, msg) {
+      const fb = document.getElementById('fb');
+      if (!fb) return;
+      fb.className = 'feedback ' + type;
+      fb.textContent = msg;
+    }
+
+    function renderResult() {
+      const { score } = state;
+      const comment = score >= 90 ? '配方大師！🏆' : score >= 70 ? '飲料達人！👍' : score >= 50 ? '還不錯，再練習！☕' : '繼續加油！🌟';
+      document.getElementById('prog').style.width = '100%';
+      document.getElementById('score').textContent = score;
+      document.getElementById('main').innerHTML = `
+    <div class="result-screen">
+      <div class="big">${score}</div>
+      <p>滿分 100 分 · ${comment}</p>
+      <button class="btn primary" onclick="initGame()">再玩一次</button>
+    </div>
+  `;
+    }
+
+    initGame();
+  </script>
+</body>
+
+</html>
